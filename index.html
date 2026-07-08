@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Impostor — gra słowna ze znajomymi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1020; --bg2:#171933; --card:#1e2142; --card2:#262a52;
+    --txt:#eef0ff; --muted:#9aa0cf; --line:#33386b;
+    --accent:#6c8cff; --accent2:#8b6cff;
+    --good:#31d493; --bad:#ff5470; --warn:#ffcc4d; --gold:#ffd54a;
+    --imp:#ff4d67; --crew:#31d493;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 800px at 50% -10%, #23264f 0%, var(--bg) 55%);
+    color:var(--txt); min-height:100vh; overflow-x:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+  #app{max-width:560px; margin:0 auto; padding:16px 16px 40px; min-height:100vh;}
+  .screen{display:none; animation:fade .25s ease;}
+  .screen.active{display:block;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+  h1,h2,h3{margin:0 0 8px;}
+  .brand{text-align:center; padding:18px 0 6px;}
+  .brand .logo{font-size:44px; font-weight:900; letter-spacing:1px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .brand .sub{color:var(--muted); font-size:14px; margin-top:2px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:16px; margin:12px 0;
+    box-shadow:0 10px 30px rgba(0,0,0,.25);}
+  .muted{color:var(--muted);}
+  .center{text-align:center;}
+  .row{display:flex; gap:10px; align-items:center;}
+  .row.wrap{flex-wrap:wrap;}
+  .grow{flex:1;}
+  button{font-family:inherit; cursor:pointer; border:none; border-radius:14px; font-weight:700; font-size:16px;
+    padding:14px 16px; color:#fff; transition:transform .05s ease, filter .15s ease; width:100%;}
+  button:active{transform:scale(.98);}
+  .btn-primary{background:linear-gradient(90deg,var(--accent),var(--accent2));}
+  .btn-good{background:linear-gradient(90deg,#28c07f,#31d493);}
+  .btn-bad{background:linear-gradient(90deg,#ff5470,#ff7a54);}
+  .btn-ghost{background:transparent; border:1px solid var(--line); color:var(--txt);}
+  .btn-soft{background:var(--card2); color:var(--txt); border:1px solid var(--line);}
+  .btn-gold{background:linear-gradient(90deg,#ffb84d,#ffd54a); color:#3a2a00;}
+  .btn-sm{padding:9px 12px; font-size:14px; width:auto; border-radius:11px;}
+  input,select{font-family:inherit; font-size:16px; padding:13px 14px; border-radius:13px;
+    border:1px solid var(--line); background:var(--bg2); color:var(--txt); width:100%; outline:none;}
+  input::placeholder{color:#6b709c;}
+  label.small{font-size:13px; color:var(--muted); display:block; margin:2px 0 6px;}
+  .pill{display:inline-flex; align-items:center; gap:6px; background:var(--card2); border:1px solid var(--line);
+    border-radius:999px; padding:6px 12px; font-size:13px; margin:3px;}
+  .avatar{width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:22px; flex:0 0 auto; box-shadow:inset 0 0 0 2px rgba(255,255,255,.12);}
+  .avatar.lg{width:96px; height:96px; font-size:52px;}
+  .avatar.sm{width:30px; height:30px; font-size:17px;}
+  .player-row{display:flex; align-items:center; gap:10px; padding:8px; border-radius:12px; background:var(--bg2);
+    border:1px solid var(--line); margin:8px 0;}
+  .player-row .name{font-weight:700;}
+  .icon-btn{width:36px; height:36px; border-radius:10px; padding:0; display:flex; align-items:center; justify-content:center;
+    font-size:18px; flex:0 0 auto;}
+  .divider{height:1px; background:var(--line); margin:14px 0;}
+  .toggle-cats{display:flex; flex-wrap:wrap; gap:8px;}
+  .cat-chip{padding:8px 12px; border-radius:999px; border:1px solid var(--line); background:var(--bg2);
+    font-size:13px; cursor:pointer; color:var(--muted); width:auto;}
+  .cat-chip.on{background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#fff; border-color:transparent;}
+  .big-word{font-size:40px; font-weight:900; line-height:1.1; word-break:break-word;}
+  .reveal-card{border-radius:22px; padding:26px 20px; text-align:center; margin:14px 0;}
+  .reveal-imp{background:linear-gradient(160deg,#3a0f1c,#66162f); border:2px solid var(--imp);}
+  .reveal-crew{background:linear-gradient(160deg,#0f3a2a,#14513a); border:2px solid var(--crew);}
+  .tag{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:800; letter-spacing:1px;}
+  .tag-imp{background:var(--imp); color:#fff;}
+  .tag-crew{background:var(--crew); color:#062018;}
+  .hidden-cover{position:relative;}
+  .hold-hint{font-size:13px; color:var(--muted); margin-top:8px;}
+  table{width:100%; border-collapse:collapse; font-size:15px;}
+  th,td{padding:10px 8px; text-align:left; border-bottom:1px solid var(--line);}
+  th{color:var(--muted); font-weight:600; font-size:13px;}
+  td.num,th.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .rank{font-weight:900; color:var(--muted); width:26px;}
+  .rank.g1{color:var(--gold);} .rank.g2{color:#cfd3ff;} .rank.g3{color:#e0a06a;}
+  .badge{font-size:11px; padding:2px 8px; border-radius:999px; background:var(--card2); border:1px solid var(--line); color:var(--muted);}
+  .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#000a; color:#fff;
+    padding:12px 18px; border-radius:14px; font-size:14px; z-index:50; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90%;}
+  .toast.show{opacity:1;}
+  .topbar{display:flex; align-items:center; gap:10px; margin-bottom:4px;}
+  .topbar .back{width:auto; padding:9px 12px;}
+  .progress-dots{display:flex; gap:6px; justify-content:center; margin:10px 0;}
+  .dot{width:10px; height:10px; border-radius:50%; background:var(--line);}
+  .dot.done{background:var(--good);} .dot.cur{background:var(--accent); transform:scale(1.25);}
+  .stat{display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px dashed var(--line); font-size:14px;}
+  .fine{font-size:12px; color:var(--muted); line-height:1.5;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .sel-player{display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 8px; border-radius:16px;
+    background:var(--bg2); border:2px solid var(--line); cursor:pointer;}
+  .sel-player.sel{border-color:var(--bad); background:#3a1420;}
+  .code-box{font-size:34px; font-weight:900; letter-spacing:8px; text-align:center; background:var(--bg2);
+    border:1px dashed var(--line); border-radius:14px; padding:16px; margin:10px 0;}
+  .warn-txt{color:var(--warn); font-size:13px;}
+  .accordion{cursor:pointer;}
+  .list-clean{margin:6px 0 0; padding-left:18px;}
+  .list-clean li{margin:4px 0; color:var(--muted); font-size:14px;}
+  .kbd{background:var(--card2); border:1px solid var(--line); border-radius:6px; padding:1px 6px; font-size:12px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <div class="screen active" id="sc-home">
+    <div class="brand">
+      <div class="logo">IMPOSTOR</div>
+      <div class="sub">Kto zna hasło, a kto tylko udaje?</div>
+    </div>
+    <div class="card">
+      <button class="btn-primary" onclick="go('local-setup')">📱 Jeden telefon (podajemy dalej)</button>
+      <div style="height:10px"></div>
+      <button class="btn-soft" onclick="go('online-home')">🌐 Online (każdy na swoim telefonie)</button>
+    </div>
+    <div class="card">
+      <div class="accordion row" onclick="toggle('rules-body')"><b class="grow">📜 Zasady i punktacja</b><span>▾</span></div>
+      <div id="rules-body" style="display:none">
+        <div class="divider"></div>
+        <div id="rules-content"></div>
+      </div>
+    </div>
+    <p class="fine center">Baza haseł: <b id="wordcount">…</b> · po polsku · 16 kategorii</p>
+  </div>
+
+  <!-- LOCAL SETUP -->
+  <div class="screen" id="sc-local-setup">
+    <div class="topbar"><button class="btn-ghost back btn-sm" onclick="go('home')">←</button><h2 class="grow" style="margin:0">Gracze</h2></div>
+    <div class="card">
+      <label class="small">Dodaj graczy (min. 3)</label>
+      <div class="row">
+        <input id="newName" placeholder="Imię gracza" maxlength="16" onkeydown="if(event.key==='Enter')addPlayer()">
+        <button class="btn-primary btn-sm" style="width:auto" onclick="addPlayer()">Dodaj</button>
+      </div>
+      <div id="playerList"></div>
+    </div>
+
+    <div class="card">
+      <div class="accordion row" onclick="toggle('adv-body')"><b class="grow">⚙️ Ustawienia gry</b><span>▾</span></div>
+      <div id="adv-body" style="display:none">
+        <div class="divider"></div>
+        <label class="small">Szansa na „szaloną" rundę (0, 2 lub wszyscy impostorzy): <b id="chaosVal">5%</b></label>
+        <input type="range" id="chaos" min="0" max="20" value="5" oninput="document.getElementById('chaosVal').textContent=this.value+'%'">
+        <p class="fine">Im więcej graczy, tym większa szansa, że szalona runda da dwóch impostorów.</p>
+        <div class="divider"></div>
+        <label class="small">Kategorie haseł (kliknij, by włączyć/wyłączyć)</label>
+        <div class="toggle-cats" id="catToggles"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn-ghost btn-sm" style="width:auto" onclick="setAllCats(true)">Wszystkie</button>
+          <button class="btn-ghost btn-sm" style="width:auto" onclick="setAllCats(false)">Żadna</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="startLocalBtn" onclick="startLocalGame()">▶ Rozpocznij grę</button>
+    <div style="height:10px"></div>
+    <button class="btn-ghost" id="resumeScoresBtn" style="display:none" onclick="go('scoreboard')">📊 Zobacz tabelę wyników</button>
+  </div>
+
+  <!-- ROLE REVEAL (pass phone) -->
+  <div class="screen" id="sc-reveal">
+    <div class="center" style="margin-top:8px">
+      <div class="badge" id="matchBadge">Partia 1 · Runda 1</div>
+    </div>
+    <div id="revealBody"></div>
+    <div class="progress-dots" id="revealDots"></div>
+  </div>
+
+  <!-- DISCUSSION -->
+  <div class="screen" id="sc-discuss">
+    <div class="center" style="margin-top:8px"><div class="badge" id="discBadge">Partia 1 · Runda 1</div></div>
+    <div class="card center">
+      <h2 style="margin-top:6px">💬 Rozmawiajcie!</h2>
+      <p class="muted" style="margin:6px 0 0">Każdy po kolei mówi <b>jedno słowo-wskazówkę</b> pasujące do hasła.
+      Impostor blefuje. Potem zdecydujcie: kolejna runda (więcej wskazówek) czy głosowanie.</p>
+      <div class="divider"></div>
+      <div class="row wrap center" style="justify-content:center" id="discPlayers"></div>
+    </div>
+    <button class="btn-soft" onclick="nextRound()">🔁 Kolejna runda (więcej wskazówek)</button>
+    <div style="height:10px"></div>
+    <button class="btn-bad" onclick="go('vote')">🗳️ Przechodzimy do głosowania</button>
+    <div style="height:10px"></div>
+    <button class="btn-gold" onclick="go('guess')">🎯 Impostor zgaduje hasło</button>
+    <div style="height:14px"></div>
+    <button class="btn-ghost btn-sm" style="width:auto; margin:0 auto; display:block" onclick="confirmQuit()">Zakończ partię bez punktów</button>
+  </div>
+
+  <!-- IMPOSTOR GUESS -->
+  <div class="screen" id="sc-guess">
+    <div class="topbar"><button class="btn-ghost back btn-sm" onclick="go('discuss')">←</button><h2 class="grow" style="margin:0">Impostor zgaduje</h2></div>
+    <div class="card center">
+      <p class="muted">Impostor mówi na głos, jakie jego zdaniem jest hasło. Sprawdźcie i wybierzcie wynik.</p>
+      <div class="divider"></div>
+      <p class="fine">Prawidłowe hasło:</p>
+      <div class="big-word" style="font-size:30px" id="guessWord">???</div>
+      <button class="btn-ghost btn-sm" style="width:auto; margin:10px auto 0; display:block" id="showWordBtn" onclick="toggleGuessWord()">👁️ Pokaż hasło</button>
+    </div>
+    <button class="btn-good" onclick="resolveGuess(true)">✅ Zgadł! Impostor wygrywa</button>
+    <div style="height:10px"></div>
+    <button class="btn-bad" onclick="resolveGuess(false)">❌ Nie zgadł — wracamy do gry</button>
+  </div>
+
+  <!-- VOTE -->
+  <div class="screen" id="sc-vote">
+    <div class="topbar"><button class="btn-ghost back btn-sm" onclick="go('discuss')">←</button><h2 class="grow" style="margin:0">Głosowanie</h2></div>
+    <div class="card">
+      <p class="muted" style="margin:0 0 10px">Kogo wyrzucacie? (wspólna decyzja grupy)</p>
+      <div class="grid2" id="voteGrid"></div>
+    </div>
+    <button class="btn-bad" id="voteConfirm" onclick="resolveVote()" disabled>Wyrzuć wybraną osobę</button>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="sc-result">
+    <div id="resultBody"></div>
+  </div>
+
+  <!-- SCOREBOARD -->
+  <div class="screen" id="sc-scoreboard">
+    <div class="topbar"><button class="btn-ghost back btn-sm" id="sbBack" onclick="go('discuss')">←</button><h2 class="grow" style="margin:0">📊 Tabela wyników</h2></div>
+    <div class="card"><table><thead><tr><th class="rank">#</th><th>Gracz</th><th class="num">Partie</th><th class="num">Punkty</th></tr></thead><tbody id="sbBody"></tbody></table></div>
+    <button class="btn-primary" id="sbContinue" onclick="go('discuss')">Wróć do gry</button>
+    <div style="height:10px"></div>
+    <button class="btn-ghost" onclick="resetScores()">♻️ Wyzeruj punkty</button>
+  </div>
+
+  <!-- ONLINE HOME -->
+  <div class="screen" id="sc-online-home">
+    <div class="topbar"><button class="btn-ghost back btn-sm" onclick="go('home')">←</button><h2 class="grow" style="margin:0">Online</h2></div>
+    <div class="card">
+      <h3>Załóż rozgrywkę</h3>
+      <p class="fine">Ty jesteś hostem. Dostaniesz kod pokoju — podaj go znajomym. Możesz też wyrzucać graczy.</p>
+      <label class="small">Twoja nazwa</label>
+      <input id="hostName" placeholder="np. Kacper" maxlength="16">
+      <div style="height:10px"></div>
+      <button class="btn-primary" onclick="hostCreate()">➕ Stwórz pokój</button>
+    </div>
+    <div class="card">
+      <h3>Dołącz do rozgrywki</h3>
+      <label class="small">Kod pokoju</label>
+      <input id="joinCode" placeholder="np. 4821" maxlength="6" style="text-transform:uppercase; letter-spacing:4px; font-weight:800">
+      <div style="height:10px"></div>
+      <label class="small">Twoja nazwa</label>
+      <input id="joinName" placeholder="np. Ola" maxlength="16">
+      <div style="height:10px"></div>
+      <button class="btn-soft" onclick="joinRoom()">→ Dołącz</button>
+    </div>
+    <p class="fine center" id="onlineStatus"></p>
+  </div>
+
+  <!-- ONLINE LOBBY -->
+  <div class="screen" id="sc-lobby">
+    <div class="center" style="margin-top:8px"><h2>Poczekalnia</h2></div>
+    <div class="card center">
+      <p class="fine" style="margin:0">Kod pokoju — podaj znajomym:</p>
+      <div class="code-box" id="lobbyCode">----</div>
+      <p class="fine" id="lobbyRole"></p>
+    </div>
+    <div class="card">
+      <b>Gracze w pokoju</b>
+      <div id="lobbyPlayers"></div>
+    </div>
+    <div id="hostControls">
+      <button class="btn-primary" onclick="hostStart()">▶ Rozpocznij grę</button>
+      <div style="height:10px"></div>
+      <div class="accordion row" onclick="toggle('lobbyAdv')"><span class="grow muted">⚙️ Ustawienia (chaos)</span><span>▾</span></div>
+      <div id="lobbyAdv" style="display:none" class="card">
+        <label class="small">Szansa na szaloną rundę: <b id="chaosValO">5%</b></label>
+        <input type="range" id="chaosO" min="0" max="20" value="5" oninput="document.getElementById('chaosValO').textContent=this.value+'%'">
+      </div>
+    </div>
+    <div style="height:10px"></div>
+    <button class="btn-ghost btn-sm" style="width:auto; margin:0 auto; display:block" onclick="leaveOnline()">Wyjdź z pokoju</button>
+  </div>
+
+  <!-- ONLINE ROLE (client view) -->
+  <div class="screen" id="sc-online-role">
+    <div class="center" style="margin-top:8px"><div class="badge" id="oMatchBadge">Partia 1 · Runda 1</div></div>
+    <div id="onlineRoleBody"></div>
+    <div id="onlineHostPanel"></div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= WORD DATABASE ================= */
+const WORDS = {"Zwierzęta":["pies","kot","koń","krowa","świnia","owca","koza","kura","kaczka","gęś","indyk","królik","chomik","świnka morska","lew","tygrys","lampart","gepard","pantera","ryś","żbik","puma","jaguar","niedźwiedź","panda","koala","miś polarny","słoń","nosorożec","hipopotam","żyrafa","zebra","antylopa","gazela","bizon","żubr","łoś","jeleń","sarna","dzik","wilk","lis","szakal","hiena","kojot","borsuk","wydra","kuna","łasica","gronostaj","jenot","małpa","goryl","szympans","orangutan","pawian","makak","lemur","delfin","wieloryb","orka","rekin","foka","morświn","manat","płaszczka","krokodyl","aligator","waran","legwan","kameleon","gekon","jaszczurka","wąż","kobra","pyton","anakonda","żmija","żaba","ropucha","traszka","salamandra","orzeł","sokół","jastrząb","myszołów","sęp","kondor","puchacz","sowa","papuga","ara","kanarek","gil","sikorka","wróbel","jaskółka","bocian","czapla","żuraw","flaming","pelikan","paw","struś","emu","kazuar","pingwin","kogut","mrówka","pszczoła","osa","trzmiel","motyl","ćma","biedronka","konik polny","świerszcz","komar","mucha","ważka","chrząszcz","żuk","karaluch","świetlik","cykada","pająk","skorpion","stonoga","kleszcz","ślimak","ośmiornica","kałamarnica","meduza","rozgwiazda","krab","homar","krewetka","rak","łosoś","tuńczyk","dorsz","śledź","karp","szczupak","okoń","sum","węgorz","pstrąg","jeż","kret","nietoperz","szczur","mysz","wiewiórka","bóbr","szop pracz","alpaka","lama","wielbłąd","dromader","jak","bawół","baran","ogier","klacz","źrebak","cielę","prosię","jagnię"],"Jedzenie i napoje":["pizza","hamburger","hot dog","kebab","frytki","nuggetsy","zapiekanka","kanapka","tost","naleśnik","gofr","spaghetti","makaron","lasagne","risotto","sushi","ramen","pierogi","bigos","gołąbki","schabowy","kotlet mielony","rosół","żurek","barszcz","pomidorowa","ogórkowa","grochówka","krupnik","chleb","bułka","bagietka","rogal","croissant","bajgiel","precel","ryż","kasza","ziemniaki","puree","kluski","knedle","placki ziemniaczane","jajecznica","omlet","jajko sadzone","ser żółty","twaróg","mozzarella","parmezan","cheddar","feta","masło","dżem","miód","nutella","kiełbasa","parówka","szynka","boczek","salami","kabanos","pasztet","jabłko","gruszka","banan","pomarańcza","mandarynka","cytryna","grejpfrut","kiwi","ananas","mango","truskawka","malina","jagoda","borówka","jeżyna","porzeczka","agrest","winogrono","arbuz","melon","brzoskwinia","morela","śliwka","wiśnia","czereśnia","nektarynka","pomidor","ogórek","papryka","cebula","czosnek","marchewka","pietruszka","seler","burak","rzodkiewka","kapusta","kalafior","brokuł","szpinak","sałata","rukola","por","dynia","cukinia","bakłażan","pieczarki","orzechy","migdały","pistacje","nerkowce","czekolada","cukierek","lizak","guma do żucia","żelki","pianki","lody","ciasto","tort","sernik","szarlotka","babka","drożdżówka","pączek","faworki","budyń","galaretka","kisiel","herbata","kawa","espresso","latte","cappuccino","kakao","woda","sok","lemoniada","oranżada","kompot","cola","piwo","wino","szampan","wódka","whisky","rum","gin","tequila","likier","nalewka","smoothie","shake","popcorn","chipsy","paluszki","krakersy","nachos","keczup","majonez","musztarda","zupa","sałatka","surówka"],"Kraje":["Polska","Niemcy","Francja","Hiszpania","Włochy","Portugalia","Holandia","Belgia","Szwajcaria","Austria","Czechy","Słowacja","Węgry","Ukraina","Białoruś","Litwa","Łotwa","Estonia","Rosja","Finlandia","Szwecja","Norwegia","Dania","Islandia","Wielka Brytania","Irlandia","Grecja","Chorwacja","Serbia","Rumunia","Bułgaria","Turcja","Stany Zjednoczone","Kanada","Meksyk","Kuba","Jamajka","Brazylia","Argentyna","Chile","Peru","Kolumbia","Wenezuela","Urugwaj","Ekwador","Boliwia","Paragwaj","Chiny","Japonia","Korea Południowa","Korea Północna","Indie","Pakistan","Tajlandia","Wietnam","Filipiny","Indonezja","Malezja","Singapur","Australia","Nowa Zelandia","Egipt","Maroko","Tunezja","Algieria","Nigeria","Kenia","Etiopia","Ghana","Senegal","Tanzania","Republika Południowej Afryki","Izrael","Arabia Saudyjska","Zjednoczone Emiraty Arabskie","Katar","Iran","Irak","Liban","Jordania","Mongolia","Kazachstan","Nepal","Bangladesz","Sri Lanka","Kambodża","Mjanma"],"Miasta":["Warszawa","Kraków","Łódź","Wrocław","Poznań","Gdańsk","Szczecin","Bydgoszcz","Lublin","Katowice","Białystok","Gdynia","Częstochowa","Radom","Toruń","Sopot","Zakopane","Rzeszów","Kielce","Olsztyn","Londyn","Paryż","Berlin","Madryt","Barcelona","Rzym","Mediolan","Wenecja","Florencja","Neapol","Amsterdam","Bruksela","Wiedeń","Praga","Budapeszt","Zurych","Genewa","Lizbona","Ateny","Sztokholm","Oslo","Kopenhaga","Helsinki","Moskwa","Kijów","Stambuł","Dubaj","Nowy Jork","Los Angeles","Chicago","Miami","Las Vegas","San Francisco","Boston","Waszyngton","Seattle","Toronto","Vancouver","Tokio","Kioto","Osaka","Pekin","Szanghaj","Hongkong","Seul","Bangkok","Mumbaj","Delhi","Sydney","Melbourne","Rio de Janeiro","Sao Paulo","Buenos Aires","Kair","Casablanca","Kapsztad"],"Sławne osoby":["Robert Lewandowski","Wojciech Szczęsny","Kamil Stoch","Iga Świątek","Adam Małysz","Justyna Kowalczyk","Fryderyk Chopin","Mikołaj Kopernik","Maria Skłodowska-Curie","Jan Paweł II","Lech Wałęsa","Adam Mickiewicz","Henryk Sienkiewicz","Wisława Szymborska","Stanisław Lem","Andrzej Sapkowski","Leo Messi","Cristiano Ronaldo","Neymar","Kylian Mbappe","Diego Maradona","Pele","Zinedine Zidane","LeBron James","Michael Jordan","Kobe Bryant","Roger Federer","Rafael Nadal","Novak Djokovic","Serena Williams","Usain Bolt","Michael Phelps","Albert Einstein","Isaac Newton","Karol Darwin","Stephen Hawking","Nikola Tesla","Thomas Edison","Galileusz","Arystoteles","Platon","Sokrates","Leonardo da Vinci","Michał Anioł","Pablo Picasso","Vincent van Gogh","Salvador Dali","Claude Monet","William Shakespeare","Wolfgang Mozart","Ludwig van Beethoven","Johann Bach","Elvis Presley","Michael Jackson","Freddie Mercury","John Lennon","Bob Marley","Kurt Cobain","David Bowie","Madonna","Beyonce","Rihanna","Lady Gaga","Taylor Swift","Adele","Eminem","Kanye West","Drake","Ed Sheeran","The Weeknd","Billie Eilish","Ariana Grande","Justin Bieber","Bruno Mars","Elon Musk","Bill Gates","Steve Jobs","Mark Zuckerberg","Jeff Bezos","Warren Buffett","Barack Obama","Donald Trump","Winston Churchill","Nelson Mandela","Mahatma Gandhi","Napoleon Bonaparte","Juliusz Cezar","Kleopatra","Aleksander Wielki","Leonardo DiCaprio","Brad Pitt","Angelina Jolie","Tom Cruise","Johnny Depp","Will Smith","Robert Downey Jr","Scarlett Johansson","Morgan Freeman","Denzel Washington","Keanu Reeves","Dwayne Johnson","Arnold Schwarzenegger","Sylvester Stallone","Jackie Chan","Walt Disney","Steven Spielberg","Quentin Tarantino","Greta Thunberg","Oprah Winfrey"],"Postacie fikcyjne":["Harry Potter","Hermiona Granger","Ron Weasley","Voldemort","Dumbledore","Hagrid","Snape","Draco Malfoy","Gandalf","Frodo","Aragorn","Legolas","Gollum","Sauron","Bilbo","Luke Skywalker","Darth Vader","Yoda","Han Solo","Chewbacca","księżniczka Leia","Batman","Superman","Spiderman","Iron Man","Hulk","Thor","Kapitan Ameryka","Wonder Woman","Aquaman","Flash","Joker","Thanos","Loki","Deadpool","Wolverine","Sherlock Holmes","James Bond","Indiana Jones","Rocky","Terminator","Rambo","John Wick","Mario","Luigi","Bowser","Yoshi","Sonic","Pikachu","Kirby","Zelda","Link","Shrek","Osioł","Fiona","Kot w butach","Wiedźmin Geralt","Ciri","Yennefer","Myszka Miki","Kaczor Donald","Goofy","Kubuś Puchatek","Tygrysek","Prosiaczek","Kłapouchy","Elsa","Anna","Olaf","Simba","Timon","Pumba","Aladyn","Dżin","Kopciuszek","Roszpunka","Ariel","Homer Simpson","Bart Simpson","Rick Sanchez","SpongeBob","Patryk","Reksio","Bolek i Lolek","Naruto","Goku","Luffy"],"Filmy i seriale":["Titanic","Avatar","Matrix","Incepcja","Interstellar","Gladiator","Skazani na Shawshank","Ojciec chrzestny","Forrest Gump","Pulp Fiction","Milczenie owiec","Obcy","Predator","Władca Pierścieni","Hobbit","Gwiezdne Wojny","Avengers","Piraci z Karaibów","Park Jurajski","King Kong","Toy Story","Kraina Lodu","Król Lew","Gdzie jest Nemo","Auta","Minionki","Gra o Tron","Wiedźmin","Stranger Things","Breaking Bad","Peaky Blinders","Dom z papieru","Przyjaciele","Teoria wielkiego podrywu","Simpsonowie","Rick i Morty","Squid Game","Czarne lustro","Wednesday","Lucyfer","Sherlock","Chłopaki nie płaczą","Kiler","Dzień Świra","Sami swoi","Miś","Rejs","Seksmisja","Kevin sam w domu","Zielona mila","Znachor","Boże Ciało","Pianista","Katyń","Django","Wilk z Wall Street","Szybcy i wściekli","Mission Impossible","Mad Max","Truman Show","Siedem"],"Marki i firmy":["Apple","Samsung","Google","Microsoft","Amazon","Facebook","Instagram","TikTok","YouTube","Netflix","Spotify","Nike","Adidas","Reebok","New Balance","Vans","Converse","Coca-Cola","Pepsi","Fanta","Sprite","Red Bull","Monster","McDonald's","KFC","Burger King","Subway","Starbucks","Pizza Hut","BMW","Mercedes","Audi","Volkswagen","Toyota","Honda","Ford","Ferrari","Lamborghini","Porsche","Tesla","Volvo","Opel","Fiat","Skoda","Sony","LG","Panasonic","Philips","Bosch","Siemens","Zara","Gucci","Prada","Louis Vuitton","Chanel","Versace","Rolex","Lego","PlayStation","Xbox","Nintendo","IKEA","Lidl","Żabka","Auchan","Carrefour","Pepco","Rossmann","Media Markt","Orlen","Allegro","OLX","InPost","Play","Orange","Plus","T-Mobile","Uber","Bolt","Disney","HBO","Intel","Nvidia","AMD","Gillette","Nivea","Loreal","Heineken","Tyskie","Żywiec","Lech","Ryanair","Wizzair"],"Przedmioty codzienne":["telefon","smartfon","laptop","komputer","tablet","telewizor","monitor","klawiatura","myszka","słuchawki","głośnik","ładowarka","powerbank","pilot","bateria","żarówka","lampa","latarka","zegarek","budzik","kalendarz","długopis","ołówek","gumka","linijka","nożyczki","zszywacz","spinacz","kartka","zeszyt","książka","gazeta","czasopismo","mapa","kubek","szklanka","talerz","miska","widelec","nóż","łyżka","łyżeczka","garnek","patelnia","czajnik","lodówka","piekarnik","mikrofalówka","zmywarka","pralka","suszarka","odkurzacz","żelazko","toster","blender","kanapa","fotel","krzesło","stół","biurko","łóżko","szafa","komoda","półka","lustro","dywan","zasłona","poduszka","koc","kołdra","ręcznik","prześcieradło","klucz","zamek","kłódka","portfel","torebka","plecak","walizka","parasol","okulary","rękawiczki","czapka","szalik","szczoteczka","pasta do zębów","mydło","szampon","grzebień","zapalniczka","świeca","zapałki","młotek","śrubokręt","wiertarka","piła","gwóźdź","śruba","klej","taśma","rower","hulajnoga","deskorolka","rolki","piłka","rakieta","namiot","śpiwór","aparat","kamera","dron","gitara","pianino","skrzypce","perkusja","flet","trąbka"],"Zawody":["lekarz","pielęgniarka","dentysta","weterynarz","farmaceuta","ratownik","nauczyciel","profesor","wykładowca","policjant","strażak","żołnierz","ochroniarz","detektyw","prawnik","adwokat","sędzia","prokurator","notariusz","inżynier","architekt","programista","informatyk","grafik","piekarz","kucharz","kelner","barman","cukiernik","rzeźnik","fryzjer","kosmetyczka","krawiec","szewc","kierowca","stewardesa","maszynista","taksówkarz","kurier","listonosz","rolnik","ogrodnik","leśnik","rybak","górnik","mechanik","hydraulik","elektryk","stolarz","murarz","malarz","dekarz","spawacz","dziennikarz","reporter","fotograf","prezenter","aktor","reżyser","piosenkarz","muzyk","tancerz","rzeźbiarz","pisarz","poeta","sprzedawca","kasjer","księgowy","ekonomista","bankier","makler","naukowiec","biolog","chemik","fizyk","astronom","archeolog","geolog","psycholog","psychiatra","terapeuta","sportowiec","trener","piłkarz","bokser","ksiądz","zakonnica","polityk","prezydent","premier","minister","burmistrz","astronauta","influencer","youtuber","streamer","bloger"],"Sport i rozrywka":["piłka nożna","koszykówka","siatkówka","piłka ręczna","tenis","tenis stołowy","badminton","squash","hokej","łyżwiarstwo","narciarstwo","snowboard","biathlon","skoki narciarskie","pływanie","nurkowanie","surfing","żeglarstwo","wioślarstwo","kajakarstwo","bieganie","maraton","lekkoatletyka","skok wzwyż","skok w dal","rzut oszczepem","boks","kickboxing","karate","judo","taekwondo","zapasy","MMA","kolarstwo","golf","krykiet","baseball","rugby","futbol amerykański","gimnastyka","akrobatyka","taniec","balet","wspinaczka","szachy","warcaby","brydż","poker","piłkarzyki","bilard","kręgle","dart","paintball","joga","fitness","crossfit","kulturystyka","podnoszenie ciężarów","jeździectwo","Formuła 1","rajdy","motocross","łucznictwo","strzelectwo","szermierka","wędkarstwo","esport","gaming"],"Natura i miejsca":["góra","wzgórze","szczyt","dolina","wąwóz","jaskinia","las","puszcza","dżungla","gaj","polana","łąka","pole","step","pustynia","rzeka","jezioro","staw","bagno","wodospad","strumień","źródło","morze","ocean","zatoka","plaża","wybrzeże","wyspa","półwysep","laguna","rafa","wulkan","gejzer","lodowiec","lawina","niebo","chmura","tęcza","błyskawica","burza","tornado","huragan","trzęsienie ziemi","słońce","księżyc","gwiazda","planeta","kometa","meteoryt","galaktyka","deszcz","śnieg","grad","mgła","szron","rosa","wiatr","wiosna","lato","jesień","zima","park","ogród","skwer","plac","rynek","most","tunel","wieża","pałac","katedra","kościół","meczet","latarnia morska","wiatrak","stadion","arena","lotnisko","dworzec","port","przystań","szkoła","szpital","biblioteka","muzeum","teatr","kino","galeria","restauracja","kawiarnia","bar","hotel","supermarket","targ","bazar","zoo","akwarium","planetarium","piramida","sfinks","wieża Eiffla"],"Technologia i internet":["internet","wifi","bluetooth","router","modem","serwer","strona internetowa","aplikacja","gra komputerowa","email","hasło","login","konto","profil","haker","wirus","antywirus","firewall","robot","sztuczna inteligencja","programowanie","kod","algorytm","baza danych","procesor","pamięć","dysk twardy","karta graficzna","konsola","pad","joystick","wirtualna rzeczywistość","okulary VR","smartwatch","opaska fitness","drukarka","skaner","projektor","kabel USB","adapter","mem","hashtag","streaming","podcast","kryptowaluta","bitcoin","blockchain","ekran dotykowy","selfie","emoji","nawigacja GPS"],"Święta i wydarzenia":["Boże Narodzenie","Wigilia","Sylwester","Nowy Rok","Wielkanoc","Walentynki","Halloween","andrzejki","mikołajki","tłusty czwartek","śmigus-dyngus","Dzień Matki","Dzień Ojca","Dzień Dziecka","Dzień Kobiet","Dzień Chłopaka","urodziny","imieniny","rocznica","ślub","wesele","chrzest","komunia","studniówka","matura","wagary","karnawał","festiwal","koncert","parada","mundial","olimpiada"],"Ciało i zdrowie":["głowa","włosy","oko","nos","usta","ucho","ząb","język","broda","policzek","czoło","brew","rzęsa","szyja","kark","ramię","łokieć","nadgarstek","dłoń","palec","paznokieć","klatka piersiowa","brzuch","plecy","biodro","noga","kolano","łydka","kostka","stopa","pięta","serce","mózg","płuca","żołądek","wątroba","nerka","kość","mięsień","skóra","krew","żyła","kaszel","gorączka","ból głowy","tabletka","syrop","plaster","bandaż","zastrzyk","szczepionka","witaminy","dieta"],"Muzyka":["rock","pop","rap","hip-hop","jazz","blues","metal","punk","techno","disco","reggae","country","keyboard","bęben","wiolonczela","kontrabas","klarnet","saksofon","puzon","harmonijka","akordeon","mikrofon","wzmacniacz","kolumna","płyta","album","singiel","nuty","melodia","rytm","refren","zwrotka","chór","orkiestra","zespół","kapela","piosenka","hymn","kołysanka","karaoke","playlista"]};
+const CATS = Object.keys(WORDS);
+
+/* ================= AVATARS ================= */
+const AVATARS = ["🦊","🐼","🐧","🦁","🐸","🐵","🦄","🐯","🐨","🐷","🐰","🐺","🦉","🐙","🐳","🦖","🐢","🦋","🐝","🦅","🐬","🦈","🐊","🦩","🦜","🐴","🐮","🐗","🦔","🐹","🐭","🐻"];
+const COLORS = ["#ff6b6b","#ffa94d","#ffd43b","#69db7c","#38d9a9","#4dabf7","#748ffc","#b197fc","#f783ac","#e599f7","#63e6be","#ffc078"];
+
+/* ================= STATE ================= */
+let G = {
+  players: [],          // {id,name,avatar,color,score,matches}
+  chaos: 5,
+  cats: CATS.slice(),
+  matchNo: 0,
+  match: null,          // current match object
+  usedWords: [],
+};
+
+function uid(){ return 'p'+Math.random().toString(36).slice(2,9); }
+function rint(n){ return Math.floor(Math.random()*n); }
+function pick(arr){ return arr[rint(arr.length)]; }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=rint(i+1); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+/* ================= NAV ================= */
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sc-'+id).classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='reveal') renderReveal();
+  if(id==='discuss') renderDiscuss();
+  if(id==='vote') renderVote();
+  if(id==='guess') renderGuess();
+  if(id==='result') {}
+  if(id==='scoreboard') renderScoreboard();
+}
+function toggle(id){ const e=document.getElementById(id); e.style.display = e.style.display==='none'?'block':'none'; }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1900); }
+
+/* ================= PLAYERS (local) ================= */
+function addPlayer(){
+  const inp=document.getElementById('newName');
+  const name=(inp.value||'').trim();
+  if(!name){ toast('Wpisz imię'); return; }
+  if(G.players.length>=12){ toast('Maksymalnie 12 graczy'); return; }
+  const used=G.players.map(p=>p.avatar);
+  const av = AVATARS.filter(a=>!used.includes(a));
+  const player={ id:uid(), name, avatar: av.length?pick(av):pick(AVATARS),
+                 color: COLORS[G.players.length%COLORS.length], score:0, matches:0 };
+  G.players.push(player);
+  inp.value=''; inp.focus();
+  renderPlayerList();
+}
+function removePlayer(id){ G.players=G.players.filter(p=>p.id!==id); renderPlayerList(); }
+function cycleAvatar(id){
+  const p=G.players.find(x=>x.id===id); if(!p) return;
+  const i=AVATARS.indexOf(p.avatar); p.avatar=AVATARS[(i+1)%AVATARS.length]; renderPlayerList();
+}
+function renderPlayerList(){
+  const box=document.getElementById('playerList');
+  box.innerHTML = G.players.map(p=>`
+    <div class="player-row">
+      <div class="avatar" style="background:${p.color}22" onclick="cycleAvatar('${p.id}')">${p.avatar}</div>
+      <div class="name grow">${escapeHtml(p.name)}</div>
+      <button class="icon-btn btn-ghost" onclick="removePlayer('${p.id}')">✕</button>
+    </div>`).join('') || '<p class="fine">Brak graczy — dodaj przynajmniej trzech.</p>';
+  const btn=document.getElementById('startLocalBtn');
+  btn.disabled = G.players.length<3;
+  btn.style.opacity = G.players.length<3?.5:1;
+  document.getElementById('resumeScoresBtn').style.display = G.matchNo>0?'block':'none';
+}
+
+/* ================= CATEGORIES ================= */
+function renderCatToggles(){
+  const box=document.getElementById('catToggles');
+  box.innerHTML = CATS.map(c=>`<button class="cat-chip ${G.cats.includes(c)?'on':''}" onclick="toggleCat('${c.replace(/'/g,"\\'")}')">${c}</button>`).join('');
+}
+function toggleCat(c){
+  if(G.cats.includes(c)) G.cats=G.cats.filter(x=>x!==c);
+  else G.cats.push(c);
+  if(G.cats.length===0){ G.cats=[c]; toast('Zostaw przynajmniej jedną kategorię'); }
+  renderCatToggles();
+}
+function setAllCats(on){ G.cats = on?CATS.slice():[CATS[0]]; renderCatToggles(); }
+
+/* ================= ROLE ASSIGNMENT ================= */
+function chooseWord(){
+  const pool=[];
+  G.cats.forEach(c=> (WORDS[c]||[]).forEach(w=> pool.push({w,c})) );
+  let avail = pool.filter(x=>!G.usedWords.includes(x.w));
+  if(avail.length===0){ G.usedWords=[]; avail=pool; }
+  const chosen=pick(avail);
+  G.usedWords.push(chosen.w);
+  return chosen;
+}
+// Decide number & set of impostors given n players and chaos %
+function assignRoles(playerIds, chaosPct){
+  const n=playerIds.length;
+  const c=Math.max(0,Math.min(20,chaosPct))/100;
+  let special='normal', k=1;
+  if(Math.random()<c){
+    // weighted special
+    const wDouble=Math.max(0,n-3);        // n>=4
+    const wTriple=Math.max(0,n-5);        // n>=6
+    const wNone=1, wAll=1;
+    const opts=[['none',wNone],['all',wAll],['double',wDouble],['triple',wTriple]].filter(o=>o[1]>0);
+    const tot=opts.reduce((s,o)=>s+o[1],0);
+    let r=Math.random()*tot, chosen='none';
+    for(const o of opts){ if(r<o[1]){chosen=o[0];break;} r-=o[1]; }
+    special=chosen;
+    if(chosen==='none') k=0;
+    else if(chosen==='double') k=2;
+    else if(chosen==='triple') k=3;
+    else if(chosen==='all') k=n;
+  }
+  const shuffled=shuffle(playerIds);
+  const imps=shuffled.slice(0,k);
+  return {impostors:imps, special, k};
+}
+
+function buildMatch(playerIds, chaosPct){
+  G.matchNo++;
+  const {impostors, special} = assignRoles(playerIds, chaosPct);
+  const hasWord = impostors.length < playerIds.length; // if everyone impostor -> no word needed
+  const wc = chooseWord();
+  return {
+    no: G.matchNo,
+    round: 1,
+    playerIds: playerIds.slice(),
+    impostors,                 // array of ids
+    word: hasWord ? wc.w : null,
+    category: hasWord ? wc.c : null,
+    special,                    // normal/none/double/triple/all
+    revealIndex:0,
+    guessWordShown:false,
+    resolved:false,
+  };
+}
+function isImp(id){ return G.match.impostors.includes(id); }
+
+/* ================= START LOCAL ================= */
+function startLocalGame(){
+  if(G.players.length<3){ toast('Dodaj min. 3 graczy'); return; }
+  G.chaos = parseInt(document.getElementById('chaos').value);
+  G.match = buildMatch(G.players.map(p=>p.id), G.chaos);
+  go('reveal');
+}
+function newMatch(){
+  G.match = buildMatch(G.players.map(p=>p.id), G.chaos);
+  go('reveal');
+}
+
+/* ================= REVEAL (pass phone) ================= */
+function renderReveal(){
+  const m=G.match;
+  document.getElementById('matchBadge').textContent = `Partia ${m.no} · Runda ${m.round}`;
+  const idx=m.revealIndex;
+  const dots = m.playerIds.map((_,i)=>`<div class="dot ${i<idx?'done':(i===idx?'cur':'')}"></div>`).join('');
+  document.getElementById('revealDots').innerHTML=dots;
+  const body=document.getElementById('revealBody');
+  if(idx>=m.playerIds.length){ go('discuss'); return; }
+  const p=G.players.find(x=>x.id===m.playerIds[idx]);
+  body.innerHTML = `
+    <div class="card center">
+      <p class="muted" style="margin:2px 0 10px">Podaj telefon graczowi:</p>
+      <div class="avatar lg" style="background:${p.color}22; margin:0 auto">${p.avatar}</div>
+      <h1 style="margin:12px 0 4px">${escapeHtml(p.name)}</h1>
+      <p class="fine">Upewnij się, że tylko Ty patrzysz na ekran.</p>
+      <div style="height:6px"></div>
+      <button class="btn-primary" onclick="showRole()">👁️ To ja — pokaż moją rolę</button>
+    </div>`;
+}
+function showRole(){
+  const m=G.match; const p=G.players.find(x=>x.id===m.playerIds[m.revealIndex]);
+  const imp=isImp(p.id);
+  const body=document.getElementById('revealBody');
+  if(imp){
+    body.innerHTML=`
+      <div class="reveal-card reveal-imp">
+        <span class="tag tag-imp">TWOJA ROLA</span>
+        <div class="big-word" style="margin-top:14px; color:#ff9db0">IMPOSTOR</div>
+        <p class="muted" style="margin-top:12px">Nie znasz hasła. Słuchaj innych i <b>blefuj</b>, żeby Cię nie wykryli. Możesz spróbować zgadnąć hasło!</p>
+      </div>
+      <button class="btn-soft" onclick="hideRole()">✅ Zapamiętane — ukryj i przekaż dalej</button>`;
+  } else {
+    body.innerHTML=`
+      <div class="reveal-card reveal-crew">
+        <span class="tag tag-crew">HASŁO · ${escapeHtml(m.category)}</span>
+        <div class="big-word" style="margin-top:14px">${escapeHtml(m.word)}</div>
+        <p class="muted" style="margin-top:12px">Ty znasz hasło. Podaj wskazówkę, ale nie za oczywistą — inaczej impostor zgadnie!</p>
+      </div>
+      <button class="btn-soft" onclick="hideRole()">✅ Zapamiętane — ukryj i przekaż dalej</button>`;
+  }
+}
+function hideRole(){ G.match.revealIndex++; renderReveal(); }
+
+/* ================= DISCUSS ================= */
+function renderDiscuss(){
+  const m=G.match;
+  document.getElementById('discBadge').textContent=`Partia ${m.no} · Runda ${m.round}`;
+  document.getElementById('discPlayers').innerHTML = m.playerIds.map(id=>{
+    const p=G.players.find(x=>x.id===id);
+    return `<span class="pill"><span class="avatar sm" style="background:${p.color}22">${p.avatar}</span>${escapeHtml(p.name)}</span>`;
+  }).join('');
+}
+function nextRound(){ G.match.round++; toast('Runda '+G.match.round+' — dorzućcie wskazówki'); renderDiscuss(); }
+
+/* ================= GUESS ================= */
+function renderGuess(){
+  G.match.guessWordShown=false;
+  document.getElementById('guessWord').textContent='???';
+  document.getElementById('showWordBtn').textContent='👁️ Pokaż hasło';
+  if(!G.match.word){ document.getElementById('guessWord').textContent='(brak hasła w tej rundzie)'; }
+}
+function toggleGuessWord(){
+  const m=G.match; if(!m.word) return;
+  m.guessWordShown=!m.guessWordShown;
+  document.getElementById('guessWord').textContent = m.guessWordShown ? m.word : '???';
+  document.getElementById('showWordBtn').textContent = m.guessWordShown ? '🙈 Ukryj' : '👁️ Pokaż hasło';
+}
+function resolveGuess(correct){
+  if(correct){ finishMatch({type:'guess'}); }
+  else { toast('Pudło! Gra toczy się dalej'); go('discuss'); }
+}
+
+/* ================= VOTE ================= */
+let voteSel=null;
+function renderVote(){
+  voteSel=null;
+  document.getElementById('voteConfirm').disabled=true;
+  const grid=document.getElementById('voteGrid');
+  grid.innerHTML = G.match.playerIds.map(id=>{
+    const p=G.players.find(x=>x.id===id);
+    return `<div class="sel-player" id="v-${id}" onclick="selVote('${id}')">
+      <div class="avatar" style="background:${p.color}22">${p.avatar}</div>
+      <div style="font-weight:700; font-size:14px">${escapeHtml(p.name)}</div></div>`;
+  }).join('');
+}
+function selVote(id){
+  voteSel=id;
+  document.querySelectorAll('.sel-player').forEach(e=>e.classList.remove('sel'));
+  document.getElementById('v-'+id).classList.add('sel');
+  document.getElementById('voteConfirm').disabled=false;
+}
+function resolveVote(){ if(!voteSel) return; finishMatch({type:'vote', ejected:voteSel}); }
+function confirmQuit(){ finishMatch({type:'quit'}); }
+
+/* ================= SCORING & RESULT ================= */
+function crewCatch(N){ return Math.max(1, 5-(N-1)); }   // N=1->5 ... N>=5->1
+const IMP_SURVIVE=6, IMP_GUESS=8;
+
+// Pure scoring — no state changes. Returns {delta, headline, sub, tone}
+function computeMatchResult(m, outcome){
+  const N=m.round;
+  const imps=m.impostors;
+  const crew=m.playerIds.filter(id=>!imps.includes(id));
+  const delta={}; m.playerIds.forEach(id=>delta[id]=0);
+  let headline='', sub='', tone='crew';
+  const special=m.special;
+
+  if(special==='none'){
+    m.playerIds.forEach(id=>delta[id]=1);
+    headline='😅 Nikt nie był impostorem!'; sub='Szalona runda — wszyscy dostają +1 za przetrwanie podstępu.'; tone='warn';
+  } else if(special==='all'){
+    m.playerIds.forEach(id=>delta[id]=1);
+    headline='🤯 Wszyscy byli impostorami!'; sub='Nikt nie miał hasła. Czysty chaos — +1 dla każdego.'; tone='warn';
+  } else if(outcome.type==='guess'){
+    imps.forEach(id=>delta[id]=IMP_GUESS);
+    headline='🎯 Impostor zgadł hasło!'; sub=`Impostor${imps.length>1?'zy':''} wygrywa. +${IMP_GUESS} pkt. Reszta bez punktów.`; tone='imp';
+  } else if(outcome.type==='quit'){
+    headline='🏳️ Partia zakończona'; sub='Bez punktów.'; tone='warn';
+  } else if(outcome.type==='vote'){
+    const ej=outcome.ejected;
+    if(imps.includes(ej)){
+      crew.forEach(id=>delta[id]=crewCatch(N));
+      delta[ej]=N; // survived N rounds
+      const remaining=imps.filter(id=>id!==ej);
+      remaining.forEach(id=>delta[id]=IMP_SURVIVE);
+      if(remaining.length>0){
+        headline='🕵️ Złapaliście jednego impostora…'; sub=`…ale ${remaining.length} wciąż się ukrywa! Zgarniają +${IMP_SURVIVE}.`; tone='imp';
+      } else {
+        headline='✅ Impostor wykryty!'; sub=`Wyrzucony w rundzie ${N}. Detektywi +${crewCatch(N)}, impostor +${N} za przetrwanie ${N} rund.`; tone='crew';
+      }
+    } else {
+      imps.forEach(id=>delta[id]=IMP_SURVIVE);
+      headline='💥 Wyrzuciliście niewinnego!'; sub=`Impostor${imps.length>1?'zy':''} przetrwał — +${IMP_SURVIVE} pkt. Reszta bez punktów.`; tone='imp';
+    }
+  }
+  return {delta, headline, sub, tone};
+}
+
+function finishMatch(outcome){ // LOCAL
+  const m=G.match; if(m.resolved) return; m.resolved=true;
+  const r=computeMatchResult(m, outcome);
+  m.playerIds.forEach(id=>{ const p=G.players.find(x=>x.id===id); if(p){ p.score+=(r.delta[id]||0); p.matches+=1; } });
+  onlineActive=false;
+  renderResultScreen(r.delta, r, G.players, m, 'local');
+  go('result');
+}
+
+function renderResultScreen(delta, meta, players, m, ctx){
+  const toneColor = meta.tone==='imp'?'var(--imp)':(meta.tone==='warn'?'var(--warn)':'var(--good)');
+  const rolesHtml = m.playerIds.map(id=>{
+    const p=players.find(x=>x.id===id); if(!p) return '';
+    const imp=m.impostors.includes(id);
+    const d=delta[id]||0;
+    return `<div class="player-row">
+      <div class="avatar sm" style="background:${p.color}22">${p.avatar}</div>
+      <div class="name grow">${escapeHtml(p.name)} ${imp?'<span class="tag tag-imp" style="font-size:10px">IMPOSTOR</span>':''}</div>
+      <div style="font-weight:800; color:${d>0?'var(--good)':'var(--muted)'}">${d>0?'+'+d:'0'}</div>
+    </div>`;
+  }).join('');
+  const wordLine = m.word ? `<p class="muted center">Hasło brzmiało: <b style="color:var(--txt)">${escapeHtml(m.word)}</b> <span class="fine">(${escapeHtml(m.category)})</span></p>` : `<p class="muted center">W tej rundzie nie było hasła.</p>`;
+  let actions='';
+  if(ctx==='local'){
+    actions=`<button class="btn-primary" onclick="newMatch()">▶ Kolejna partia</button>
+      <div style="height:10px"></div><button class="btn-soft" onclick="go('scoreboard')">📊 Tabela wyników</button>`;
+  } else if(ctx==='onlineHost'){
+    actions=`<button class="btn-primary" onclick="hostNextMatch()">▶ Kolejna partia</button>
+      <div style="height:10px"></div><button class="btn-soft" onclick="go('scoreboard')">📊 Tabela wyników</button>`;
+  } else {
+    actions=`<p class="fine center">Czekaj, aż host rozpocznie kolejną partię…</p>
+      <div style="height:10px"></div><button class="btn-soft" onclick="go('scoreboard')">📊 Tabela wyników</button>`;
+  }
+  document.getElementById('resultBody').innerHTML = `
+    <div class="card center" style="border-color:${toneColor}">
+      <div class="badge">Partia ${m.no} · rozstrzygnięcie w rundzie ${m.round}</div>
+      <h1 style="margin:12px 0 6px; color:${toneColor}">${meta.headline}</h1>
+      <p class="muted" style="margin:0">${meta.sub}</p>
+    </div>
+    <div class="card">${wordLine}<div class="divider"></div>${rolesHtml}</div>
+    <div>${actions}</div>`;
+}
+
+/* ================= SCOREBOARD ================= */
+function renderScoreboard(){
+  const src = (O.role ? O.players : G.players) || [];
+  const sorted=[...src].sort((a,b)=>b.score-a.score);
+  document.getElementById('sbBody').innerHTML = sorted.map((p,i)=>`
+    <tr>
+      <td class="rank ${i<3?'g'+(i+1):''}">${i+1}</td>
+      <td><span class="avatar sm" style="background:${p.color}22; display:inline-flex; vertical-align:middle; margin-right:8px">${p.avatar}</span>${escapeHtml(p.name)}</td>
+      <td class="num">${p.matches}</td>
+      <td class="num"><b>${p.score}</b></td>
+    </tr>`).join('') || '<tr><td colspan="4" class="fine">Brak graczy.</td></tr>';
+  const backTarget = O.role ? 'result' : 'discuss';
+  const hasGame = O.role ? !!O.match : !!G.match;
+  const sbC=document.getElementById('sbContinue');
+  sbC.style.display = hasGame?'block':'none';
+  sbC.onclick=()=>go(backTarget);
+  document.getElementById('sbBack').onclick=()=>go(hasGame?backTarget:'home');
+}
+function resetScores(){ G.players.forEach(p=>{p.score=0; p.matches=0;}); G.matchNo=0; G.usedWords=[]; toast('Punkty wyzerowane'); renderScoreboard(); }
+
+/* ================= RULES ================= */
+function renderRules(){
+  document.getElementById('rules-content').innerHTML = `
+  <p class="fine">Większość graczy dostaje wspólne <b>HASŁO</b>. Losowo wybrany <b>IMPOSTOR</b> hasła nie zna. Po kolei każdy mówi jedno słowo-wskazówkę. Impostor musi zgadywać i blefować, reszta próbuje go wykryć — nie zdradzając hasła.</p>
+  <p class="fine"><b>Runda po rundzie:</b> po każdej rundzie decydujecie, czy dorzucić kolejne wskazówki (kolejna runda), czy głosować. Im dłużej impostor przetrwa — tym lepiej dla niego.</p>
+  <p class="fine"><b>Punktacja:</b></p>
+  <ul class="list-clean">
+    <li>Impostor wykryty w rundzie N → detektywi +${'{'}5,4,3,2,1{'}'} (im wcześniej, tym więcej), impostor +N za przetrwanie N rund.</li>
+    <li>Wyrzucono niewinnego → impostor +${IMP_SURVIVE}, reszta 0.</li>
+    <li>Impostor zgadł hasło → impostor +${IMP_GUESS} (najlepszy wynik!), reszta 0.</li>
+    <li>Szalona runda (0 / 2 / wszyscy impostorzy) → zdarza się rzadko; za brak lub komplet impostorów +1 dla każdego.</li>
+  </ul>
+  <p class="fine">Gracie obok siebie — mówienie słów, dyskusja i decyzja o głosowaniu dzieją się na żywo, poza apką. Apka pilnuje ról, hasła i punktów.</p>`;
+}
+
+/* ================= UTIL ================= */
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ================= INIT ================= */
+function init(){
+  document.getElementById('wordcount').textContent = Object.values(WORDS).reduce((s,a)=>s+a.length,0).toLocaleString('pl-PL');
+  renderCatToggles();
+  renderPlayerList();
+  renderRules();
+}
+init();
+
+/* ======================================================
+   ONLINE MODE (PeerJS, no server, host = star topology)
+   ====================================================== */
+let O = { role:null, peer:null, code:null, conns:{}, hostConn:null, me:null, players:[], chaos:5, match:null };
+
+function genCode(){ let s=''; const ch='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; for(let i=0;i<4;i++) s+=ch[rint(ch.length)]; return s; }
+
+function hostCreate(){
+  const name=(document.getElementById('hostName').value||'').trim();
+  if(!name){ toast('Wpisz swoją nazwę'); return; }
+  if(typeof Peer==='undefined'){ toast('Brak połączenia z biblioteką online'); return; }
+  document.getElementById('onlineStatus').textContent='Tworzę pokój…';
+  const code=genCode();
+  const peer=new Peer('impostorgra-'+code, {debug:1});
+  O.role='host'; O.peer=peer; O.code=code; O.conns={};
+  O.me={ id:'host', name, avatar:AVATARS[0], color:COLORS[0], score:0, matches:0 };
+  O.players=[O.me];
+  peer.on('open',()=>{ enterLobby(); });
+  peer.on('connection', conn=>{ setupHostConn(conn); });
+  peer.on('error', e=>{
+    if((''+e).includes('unavailable')||(''+(e.type)).includes('unavailable')){ // code taken, retry
+      peer.destroy(); hostCreate();
+    } else { toast('Błąd online: '+(e.type||e)); }
+  });
+}
+function setupHostConn(conn){
+  conn.on('open',()=>{});
+  conn.on('data', d=>{
+    if(d.type==='join'){
+      if(O.players.length>=12){ conn.send({type:'kicked',reason:'Pokój pełny'}); setTimeout(()=>conn.close(),300); return; }
+      const used=O.players.map(p=>p.avatar);
+      const av=AVATARS.filter(a=>!used.includes(a));
+      const player={ id:conn.peer, name:(d.name||'Gracz').slice(0,16),
+        avatar: av.length?av[0]:pick(AVATARS), color:COLORS[O.players.length%COLORS.length], score:0, matches:0 };
+      O.conns[conn.peer]=conn; O.players.push(player);
+      conn.send({type:'welcome', you:player.id});
+      broadcastLobby();
+    }
+  });
+  conn.on('close', ()=>{ removeOnlinePlayer(conn.peer); });
+}
+function removeOnlinePlayer(pid){
+  O.players=O.players.filter(p=>p.id!==pid);
+  delete O.conns[pid];
+  broadcastLobby();
+}
+function hostKick(pid){
+  const c=O.conns[pid];
+  if(c){ try{ c.send({type:'kicked',reason:'Host Cię wyrzucił'}); }catch(e){} setTimeout(()=>{try{c.close()}catch(e){}},300); }
+  removeOnlinePlayer(pid);
+  toast('Gracz wyrzucony');
+}
+function broadcast(msg){ Object.values(O.conns).forEach(c=>{ try{c.send(msg)}catch(e){} }); }
+function broadcastLobby(){
+  const pub=O.players.map(p=>({id:p.id,name:p.name,avatar:p.avatar,color:p.color,score:p.score,matches:p.matches}));
+  broadcast({type:'lobby', players:pub, code:O.code});
+  renderLobby();
+}
+
+function joinRoom(){
+  const code=(document.getElementById('joinCode').value||'').trim().toUpperCase();
+  const name=(document.getElementById('joinName').value||'').trim();
+  if(code.length<3){ toast('Wpisz kod pokoju'); return; }
+  if(!name){ toast('Wpisz swoją nazwę'); return; }
+  if(typeof Peer==='undefined'){ toast('Brak połączenia z biblioteką online'); return; }
+  document.getElementById('onlineStatus').textContent='Łączę…';
+  const peer=new Peer(null,{debug:1});
+  O.role='client'; O.peer=peer; O.code=code;
+  peer.on('open',()=>{
+    const conn=peer.connect('impostorgra-'+code, {reliable:true});
+    O.hostConn=conn;
+    conn.on('open',()=>{ conn.send({type:'join', name}); });
+    conn.on('data', d=>handleClientData(d));
+    conn.on('close', ()=>{ if(O.role){ toast('Rozłączono z pokojem'); leaveOnline(); } });
+    setTimeout(()=>{ if(!conn.open){ toast('Nie znaleziono pokoju — sprawdź kod'); peer.destroy(); O.role=null; document.getElementById('onlineStatus').textContent=''; } },7000);
+  });
+  peer.on('error', e=>{
+    toast('Nie udało się połączyć — sprawdź kod');
+    document.getElementById('onlineStatus').textContent='';
+  });
+}
+function handleClientData(d){
+  if(d.type==='welcome'){ O.me={id:d.you}; enterLobby(); }
+  else if(d.type==='lobby'){ O.players=d.players; O.code=d.code; renderLobby(); }
+  else if(d.type==='role'){ showOnlineRole(d); }
+  else if(d.type==='phase'){ handlePhase(d); }
+  else if(d.type==='kicked'){ toast(d.reason||'Zostałeś wyrzucony'); leaveOnline(); }
+}
+
+function enterLobby(){
+  document.getElementById('onlineStatus').textContent='';
+  document.getElementById('hostControls').style.display = O.role==='host'?'block':'none';
+  document.getElementById('lobbyRole').textContent = O.role==='host'?'Jesteś hostem. Możesz rozpocząć grę i wyrzucać graczy.':'Czekaj, aż host rozpocznie grę.';
+  renderLobby();
+  go('lobby');
+}
+function renderLobby(){
+  if(!document.getElementById('sc-lobby').classList.contains('active') && O.role) {}
+  document.getElementById('lobbyCode').textContent=O.code||'----';
+  const box=document.getElementById('lobbyPlayers');
+  if(!box) return;
+  box.innerHTML=(O.players||[]).map(p=>`
+    <div class="player-row">
+      <div class="avatar sm" style="background:${p.color}22">${p.avatar}</div>
+      <div class="name grow">${escapeHtml(p.name)}${p.id==='host'?' <span class="badge">host</span>':''}${(O.me&&p.id===O.me.id)?' <span class="badge">Ty</span>':''}</div>
+      ${O.role==='host'&&p.id!=='host'?`<button class="icon-btn btn-bad" onclick="hostKick('${p.id}')">✕</button>`:''}
+    </div>`).join('');
+}
+
+/* ---- Host runs the match, sends each player only their own role ---- */
+function hostStart(){
+  if(O.players.length<3){ toast('Potrzeba min. 3 graczy'); return; }
+  O.chaos=parseInt(document.getElementById('chaosO').value);
+  startOnlineMatch(true);
+}
+function startOnlineMatch(first){
+  const ids=O.players.map(p=>p.id);
+  // reuse local engine helpers but keep separate match object
+  const chaos=O.chaos;
+  const {impostors, special}=assignRoles(ids, chaos);
+  const hasWord = impostors.length < ids.length;
+  const wc = chooseWord();
+  O.match={ no:(O.match?O.match.no+1:1), round:1, ids, impostors, special,
+            word:hasWord?wc.w:null, category:hasWord?wc.c:null, resolved:false };
+  // send private roles
+  O.players.forEach(p=>{
+    const imp=impostors.includes(p.id);
+    const payload={type:'role', no:O.match.no, round:1, impostor:imp,
+      word:imp?null:O.match.word, category:imp?null:O.match.category, special};
+    if(p.id==='host'){ showOnlineRole(payload); }
+    else { const c=O.conns[p.id]; if(c) try{c.send(payload)}catch(e){} }
+  });
+  renderHostPanel();
+  go('online-role');
+}
+function hostPhase(phase){
+  if(phase==='nextRound'){ O.match.round++; broadcast({type:'phase',phase:'round',round:O.match.round}); document.querySelectorAll('#oMatchBadge').forEach(e=>e.textContent=`Partia ${O.match.no} · Runda ${O.match.round}`); toast('Runda '+O.match.round); renderHostPanel(); }
+}
+function handlePhase(d){
+  if(d.phase==='round'){ if(O.match)O.match.round=d.round; document.getElementById('oMatchBadge').textContent=`Partia ${O.match?O.match.no:1} · Runda ${d.round}`; toast('Runda '+d.round); }
+  else if(d.phase==='result'){ renderOnlineResult(d, false); }
+  else if(d.phase==='lobby'){ go('lobby'); }
+}
+
+function showOnlineRole(d){
+  document.getElementById('oMatchBadge').textContent=`Partia ${d.no} · Runda ${d.round||1}`;
+  if(!O.match) O.match={};
+  if(O.role!=='host'){ O.match.no=d.no; O.match.round=d.round||1; O.match.resolved=false; }
+  const body=document.getElementById('onlineRoleBody');
+  if(d.impostor){
+    body.innerHTML=`<div class="reveal-card reveal-imp">
+      <span class="tag tag-imp">TWOJA ROLA</span>
+      <div class="big-word" style="margin-top:14px; color:#ff9db0">IMPOSTOR</div>
+      <p class="muted" style="margin-top:12px">Nie znasz hasła. Blefuj i słuchaj innych. Spróbuj zgadnąć hasło!</p></div>`;
+  } else if(d.word){
+    body.innerHTML=`<div class="reveal-card reveal-crew">
+      <span class="tag tag-crew">HASŁO · ${escapeHtml(d.category)}</span>
+      <div class="big-word" style="margin-top:14px">${escapeHtml(d.word)}</div>
+      <p class="muted" style="margin-top:12px">Znasz hasło. Dawaj wskazówki, ale nie za oczywiste.</p></div>`;
+  } else {
+    body.innerHTML=`<div class="reveal-card reveal-imp"><div class="big-word" style="color:#ff9db0">IMPOSTOR</div><p class="muted">Szalona runda — nikt nie ma hasła lub wszyscy są impostorami!</p></div>`;
+  }
+  renderHostPanel();
+  go('online-role');
+}
+let onlineActive=false;
+let hostEjectSel=null;
+function renderHostPanel(){
+  const el=document.getElementById('onlineHostPanel');
+  if(O.role!=='host'){ el.innerHTML='<p class="fine center" style="margin-top:18px">Rozmawiajcie na żywo. Host prowadzi rozgrywkę i decyduje o głosowaniu.</p>'; return; }
+  el.innerHTML=`
+    <div class="divider"></div>
+    <p class="fine center">Sterowanie (host):</p>
+    <button class="btn-soft" onclick="hostPhase('nextRound')">🔁 Kolejna runda</button>
+    <div style="height:10px"></div>
+    <button class="btn-bad" onclick="hostGoVote()">🗳️ Głosowanie</button>
+    <div style="height:10px"></div>
+    <button class="btn-gold" onclick="hostGuess()">🎯 Impostor zgaduje hasło</button>
+    <div id="hostResolve"></div>`;
+}
+function hostGoVote(){
+  hostEjectSel=null;
+  const grid=O.match.ids.map(id=>{
+    const p=O.players.find(x=>x.id===id);
+    return `<div class="sel-player" id="hv-${id}" onclick="hostPickEject('${id}')">
+      <div class="avatar" style="background:${p.color}22">${p.avatar}</div>
+      <div style="font-weight:700; font-size:14px">${escapeHtml(p.name)}</div></div>`;
+  }).join('');
+  document.getElementById('hostResolve').innerHTML=`
+    <div class="divider"></div><p class="muted center">Kogo wyrzucacie?</p>
+    <div class="grid2">${grid}</div>
+    <button class="btn-bad" id="hostEjectConfirm" style="margin-top:10px; opacity:.5" disabled>Wyrzuć wybraną osobę</button>`;
+  document.getElementById('hostEjectConfirm').onclick=()=>{ if(hostEjectSel) resolveOnline({type:'vote', ejected:hostEjectSel}); };
+}
+function hostPickEject(id){
+  hostEjectSel=id;
+  document.querySelectorAll('#hostResolve .sel-player').forEach(e=>e.classList.remove('sel'));
+  const el=document.getElementById('hv-'+id); if(el) el.classList.add('sel');
+  const b=document.getElementById('hostEjectConfirm'); if(b){ b.disabled=false; b.style.opacity=1; }
+}
+function hostGuess(){
+  const w=O.match.word?O.match.word:'(brak hasła w tej rundzie)';
+  document.getElementById('hostResolve').innerHTML=`
+    <div class="divider"></div>
+    <p class="fine center">Hasło do sprawdzenia: <b id="hostGuessWord">???</b>
+    <button class="btn-ghost btn-sm" style="width:auto; display:inline-block; margin-left:6px" onclick="document.getElementById('hostGuessWord').textContent=this.getAttribute('data-w')" data-w="${escapeHtml(w)}">👁️</button></p>
+    <button class="btn-good" onclick="resolveOnline({type:'guess'})">✅ Zgadł — impostor wygrywa</button>
+    <div style="height:10px"></div>
+    <button class="btn-soft" onclick="document.getElementById('hostResolve').innerHTML=''">❌ Nie zgadł — wróć</button>`;
+}
+function resolveOnline(outcome){
+  const m=O.match; if(!m || m.resolved) return; m.resolved=true;
+  const norm={playerIds:m.ids, impostors:m.impostors, round:m.round, word:m.word, category:m.category, special:m.special, no:m.no};
+  const r=computeMatchResult(norm, outcome);
+  O.players.forEach(p=>{ if(m.ids.includes(p.id)){ p.score+=(r.delta[p.id]||0); p.matches+=1; } });
+  const pub=O.players.map(p=>({id:p.id,name:p.name,avatar:p.avatar,color:p.color,score:p.score,matches:p.matches}));
+  const payload={type:'phase', phase:'result', delta:r.delta, headline:r.headline, sub:r.sub, tone:r.tone,
+    impostors:m.impostors, word:m.word, category:m.category, players:pub, no:m.no, round:m.round};
+  broadcast(payload);
+  renderOnlineResult(payload, true);
+}
+function renderOnlineResult(d, isHost){
+  const m={ no:d.no, round:d.round, impostors:d.impostors, word:d.word, category:d.category,
+            playerIds:d.players.map(p=>p.id) };
+  O.players = d.players.map(p=>({...p}));
+  renderResultScreen(d.delta, {headline:d.headline, sub:d.sub, tone:d.tone}, O.players, m, isHost?'onlineHost':'onlineClient');
+  go('result');
+}
+function hostNextMatch(){ startOnlineMatch(false); }
+
+function leaveOnline(){
+  try{ if(O.peer) O.peer.destroy(); }catch(e){}
+  O={ role:null, peer:null, code:null, conns:{}, hostConn:null, me:null, players:[], chaos:5, match:null };
+  go('home');
+}
+window.addEventListener('beforeunload', ()=>{ try{ if(O.peer) O.peer.destroy(); }catch(e){} });
+</script>
+</body>
+</html>
