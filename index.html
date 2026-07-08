@@ -205,7 +205,8 @@
     </div>
     <button class="btn-good" onclick="resolveGuess(true)">✅ Zgadł! Impostor wygrywa</button>
     <div style="height:10px"></div>
-    <button class="btn-bad" onclick="resolveGuess(false)">❌ Nie zgadł — wracamy do gry</button>
+    <button class="btn-bad" onclick="resolveGuess(false)">❌ Nie zgadł — detektywi wygrywają</button>
+    <button class="btn-ghost btn-sm" style="width:auto; margin:10px auto 0; display:block" onclick="go('discuss')">↩︎ Anuluj — wróć bez punktów</button>
   </div>
 
   <!-- VOTE -->
@@ -513,7 +514,7 @@ function toggleGuessWord(){
 }
 function resolveGuess(correct){
   if(correct){ finishMatch({type:'guess'}); }
-  else { toast('Pudło! Gra toczy się dalej'); go('discuss'); }
+  else { finishMatch({type:'guessfail'}); }
 }
 
 /* ================= VOTE ================= */
@@ -560,6 +561,9 @@ function computeMatchResult(m, outcome){
   } else if(outcome.type==='guess'){
     imps.forEach(id=>delta[id]=IMP_GUESS);
     headline='🎯 Impostor zgadł hasło!'; sub=`Impostor${imps.length>1?'zy':''} wygrywa. +${IMP_GUESS} pkt. Reszta bez punktów.`; tone='imp';
+  } else if(outcome.type==='guessfail'){
+    crew.forEach(id=>delta[id]=crewCatch(N));
+    headline='🎯 Impostor spudłował!'; sub=`Ujawnił się i nie zgadł hasła — detektywi wygrywają. +${crewCatch(N)} każdy (jak za złapanie w rundzie ${N}). Impostor 0.`; tone='crew';
   } else if(outcome.type==='quit'){
     headline='🏳️ Partia zakończona'; sub='Bez punktów.'; tone='warn';
   } else if(outcome.type==='vote'){
@@ -655,6 +659,7 @@ function renderRules(){
     <li>Impostor wykryty w rundzie N → detektywi +${'{'}5,4,3,2,1{'}'} (im wcześniej, tym więcej), impostor +N za przetrwanie N rund.</li>
     <li>Wyrzucono niewinnego → impostor +${IMP_SURVIVE}, reszta 0.</li>
     <li>Impostor zgadł hasło → impostor +${IMP_GUESS} (najlepszy wynik!), reszta 0.</li>
+    <li>Impostor spróbował zgadnąć i nie trafił → ujawnił się, detektywi wygrywają +${'{'}5,4,3,2,1{'}'} (jak za złapanie), impostor 0.</li>
     <li>Szalona runda (0 / 2 / wszyscy impostorzy) → zdarza się rzadko; za brak lub komplet impostorów +1 dla każdego.</li>
   </ul>
   <p class="fine">Gracie obok siebie — mówienie słów, dyskusja i decyzja o głosowaniu dzieją się na żywo, poza apką. Apka pilnuje ról, hasła i punktów.</p>`;
@@ -880,7 +885,9 @@ function hostGuess(){
     <button class="btn-ghost btn-sm" style="width:auto; display:inline-block; margin-left:6px" onclick="document.getElementById('hostGuessWord').textContent=this.getAttribute('data-w')" data-w="${escapeHtml(w)}">👁️</button></p>
     <button class="btn-good" onclick="resolveOnline({type:'guess'})">✅ Zgadł — impostor wygrywa</button>
     <div style="height:10px"></div>
-    <button class="btn-soft" onclick="document.getElementById('hostResolve').innerHTML=''">❌ Nie zgadł — wróć</button>`;
+    <button class="btn-bad" onclick="resolveOnline({type:'guessfail'})">❌ Nie zgadł — detektywi wygrywają</button>
+    <div style="height:10px"></div>
+    <button class="btn-ghost btn-sm" style="width:auto; margin:0 auto; display:block" onclick="document.getElementById('hostResolve').innerHTML=''">↩︎ Anuluj — wróć bez punktów</button>`;
 }
 function resolveOnline(outcome){
   const m=O.match; if(!m || m.resolved) return; m.resolved=true;
